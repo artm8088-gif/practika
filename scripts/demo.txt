@@ -1,0 +1,6 @@
+ls
+ls -la /home
+cd /tmp
+cd ..
+ls final
+exit

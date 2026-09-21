@@ -2,12 +2,21 @@
 
 from collections.abc import Callable
 
-from .commands import cmd_cd, cmd_exit, cmd_ls
+from .commands import (
+    CommandError,
+    cmd_cd,
+    cmd_exit,
+    cmd_ls,
+    cmd_vfs_save,
+)
+from .vfs import Vfs
 
-# Имя команды -> обработчик.
-COMMANDS: dict[str, Callable[[list[str], str], str]] = {
+CommandHandler = Callable[[list[str], Vfs, str], tuple[str, str]]
+
+COMMANDS: dict[str, CommandHandler] = {
     "ls": cmd_ls,
     "cd": cmd_cd,
+    "vfs-save": cmd_vfs_save,
     "exit": cmd_exit,
 }
 
@@ -28,22 +37,23 @@ def is_exit(command: str) -> bool:
     return command == "exit"
 
 
-def execute(raw: str, vfs_path: str) -> str:
-    """Разбирает и выполняет одну строку пользовательского ввода.
+def execute(raw: str, vfs: Vfs, cwd: str) -> tuple[str, str]:
+    """Выполняет одну строку пользовательского ввода.
 
-    Возвращает текстовый результат, который нужно показать в консоли.
-    Неизвестные команды дают сообщение об ошибке в стиле UNIX.
+    Возвращает пару (вывод, новый рабочий каталог).
     """
     command, args = parse_input(raw)
-
     if not command:
-        return ""
+        return "", cwd
 
     handler = COMMANDS.get(command)
     if handler is None:
-        return UNKNOWN_COMMAND_TEMPLATE.format(name=command)
+        return UNKNOWN_COMMAND_TEMPLATE.format(name=command), cwd
 
-    return handler(args, vfs_path)
+    try:
+        return handler(args, vfs, cwd)
+    except CommandError as exc:
+        return str(exc), cwd
 
 
 def read_script(path: str) -> list[str]:
@@ -58,14 +68,14 @@ def read_script(path: str) -> list[str]:
     return lines
 
 
-def run_script(path: str, vfs_path: str) -> list[tuple[str, str]]:
+def run_script(path: str, vfs: Vfs) -> list[tuple[str, str]]:
     """Выполняет стартовый скрипт построчно.
 
-    Останавливается на первой строке, вызвавшей ошибку (неизвестная
-    команда). Возвращает список пар (ввод, вывод), чтобы GUI мог
-    воспроизвести диалог так, как будто пользователь сам всё набирал.
+    Останавливается на первой строке, вызвавшей ошибку.
+    Возвращает список пар (ввод, вывод).
     """
     results: list[tuple[str, str]] = []
+    cwd = "/"
     for index, line in enumerate(read_script(path), start=1):
         command, _ = parse_input(line)
         if command not in COMMANDS:
@@ -74,7 +84,7 @@ def run_script(path: str, vfs_path: str) -> list[tuple[str, str]]:
                 (line, SCRIPT_ERROR_TEMPLATE.format(line=index, reason=reason))
             )
             break
-        output = execute(line, vfs_path)
+        output, cwd = execute(line, vfs, cwd)
         results.append((line, output))
         if is_exit(command):
             break
