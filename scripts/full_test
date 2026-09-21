@@ -1,0 +1,17 @@
+# Проверка всех команд эмулятора и работы с VFS
+ls
+cd /home
+ls
+cd mark
+ls
+cd projects
+ls
+cd emulator
+ls
+cd /
+ls
+vfs-save /tmp/vfs_saved.csv
+cd /nonexistent
+ls /nonexistent
+unknown_command
+exit

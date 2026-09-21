@@ -1,0 +1,12 @@
+type,path,content
+dir,/home,
+dir,/home/mark,
+dir,/home/mark/projects,
+dir,/home/mark/projects/emulator,
+file,/home/mark/projects/emulator/main.py,print('hello')
+file,/home/mark/projects/emulator/README.md,Project readme
+dir,/home/mark/projects/other,
+file,/home/mark/projects/other/photo.png,base64:iVBORw0KGgo=
+dir,/var,
+dir,/var/log,
+file,/var/log/system.log,system started

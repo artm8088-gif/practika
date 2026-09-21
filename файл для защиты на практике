@@ -1,0 +1,70 @@
+where uv >nul 2>nul
+if errorlevel 1 (
+    echo [!] uv не установлен.
+    echo Установите: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 ^| iex"
+    exit /b 1
+)
+
+uv sync
+
+echo ============================================
+echo   ЭТАП 1 — REPL-прототип
+echo ============================================
+echo В окне попробуйте: ls, ls -la /home, cd /tmp, unknown, exit
+uv run python -m src.main
+if errorlevel 1 goto fail
+
+echo.
+echo ============================================
+echo   ЭТАП 2 — Конфигурация (скрипт без ошибок)
+echo ============================================
+uv run python -m src.main --vfs ./vfs/minimal.csv --script ./scripts/demo.txt
+if errorlevel 1 goto fail
+
+echo.
+echo ============================================
+echo   ЭТАП 2 — Конфигурация (скрипт с ошибкой, стоп)
+echo ============================================
+uv run python -m src.main --vfs ./vfs/minimal.csv --script ./scripts/errors.txt
+if errorlevel 1 goto fail
+
+echo.
+echo ============================================
+echo   ЭТАП 3 — VFS (минимальный)
+echo ============================================
+uv run python -m src.main --vfs ./vfs/minimal.csv
+if errorlevel 1 goto fail
+
+echo.
+echo ============================================
+echo   ЭТАП 3 — VFS (несколько файлов)
+echo ============================================
+uv run python -m src.main --vfs ./vfs/files.csv
+if errorlevel 1 goto fail
+
+echo.
+echo ============================================
+echo   ЭТАП 3 — VFS (вложенный)
+echo ============================================
+uv run python -m src.main --vfs ./vfs/nested.csv
+if errorlevel 1 goto fail
+
+echo.
+echo ============================================
+echo   ЭТАП 3 — Обработка ошибки загрузки VFS
+echo ============================================
+uv run python -m src.main --vfs ./vfs/nope.csv
+
+echo.
+echo ============================================
+echo   ЭТАП 4 — Основные команды (ls, cd, history, clear)
+echo ============================================
+uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/stage4_test.txt
+if errorlevel 1 goto fail
+
+echo.
+echo ============================================
+echo   ЭТАП 5 — Дополнительные команды (rmdir, mv)
+echo ============================================
+uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/stage5_test.txt
+if errorlevel 1 goto fail

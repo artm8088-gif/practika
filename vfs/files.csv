@@ -1,0 +1,8 @@
+type,path,content
+dir,/home,
+dir,/home/mark,
+file,/home/mark/notes.txt,Shopping list
+file,/home/mark/todo.txt,Finish practice
+dir,/tmp,
+file,/tmp/cache.log,temporary data
+file,/etc/hosts,127.0.0.1 localhost

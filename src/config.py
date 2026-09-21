@@ -1,14 +1,10 @@
-"""Конфигурация эмулятора оболочки через командную строку.
-
-Модуль отвечает за разбор аргументов CLI и отладочный вывод
-всех итоговых параметров при запуске.
-"""
+"""Конфигурация эмулятора оболочки через командную строку."""
 
 import argparse
 import os
 from dataclasses import dataclass
 
-DEFAULT_VFS_PATH = "./vfs"
+DEFAULT_VFS_PATH = "./vfs/minimal.csv"
 DEFAULT_SCRIPT_PATH = ""
 
 
@@ -30,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--vfs",
         dest="vfs_path",
         default=DEFAULT_VFS_PATH,
-        help="Путь к физическому расположению виртуальной файловой системы.",
+        help="Путь к CSV-файлу виртуальной файловой системы.",
     )
     parser.add_argument(
         "--script",
@@ -52,15 +48,11 @@ def parse_args(argv=None) -> Config:
 
 
 def debug_dump(config: Config) -> str:
-    """Возвращает отладочную строку со всеми итоговыми параметрами.
-
-    Печатается в stdout при запуске, чтобы пользователь (и проверяющий)
-    могли убедиться, какая конфигурация применилась.
-    """
+    """Возвращает отладочную строку со всеми итоговыми параметрами."""
     lines = [
         "=== Конфигурация эмулятора оболочки ===",
-        f"Путь к VFS     : {config.vfs_path}",
-        f"VFS существует : {os.path.isdir(config.vfs_path)}",
+        f"CSV VFS        : {config.vfs_path}",
+        f"VFS существует : {os.path.isfile(config.vfs_path)}",
         f"Путь к скрипту : {config.script_path or '(не задан)'}",
         f"Файл скрипта   : {os.path.isfile(config.script_path) if config.script_path else False}",
         "======================================",
