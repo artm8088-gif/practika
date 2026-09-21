@@ -1,0 +1,4 @@
+ls
+cd /var
+unknown_command --flag
+ls never_reached
