@@ -10,4 +10,4 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 uv sync
-uv run python -m src.main
+uv run python -m src.main "$@"
