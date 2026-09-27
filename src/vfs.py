@@ -74,6 +74,73 @@ class Vfs:
             raise VfsError(f"Не папка: {path}")
         return sorted(node.children.keys())
 
+    def remove_dir(self, path: str) -> None:
+        """Удаляет пустую папку по указанному пути.
+
+        Поднимает VfsError, если путь не существует, это не папка,
+        это корень или папка не пуста.
+        """
+        parts = self._split(path)
+        if not parts:
+            raise VfsError("Нельзя удалить корень")
+        parent = self.get(self._parent_path(parts))
+        if parent is None or not parent.is_dir:
+            raise VfsError(f"Путь не найден: {path}")
+        target = parent.children.get(parts[-1])
+        if target is None:
+            raise VfsError(f"Путь не найден: {path}")
+        if not target.is_dir:
+            raise VfsError(f"Не папка: {path}")
+        if target.children:
+            raise VfsError(f"Папка не пуста: {path}")
+        del parent.children[parts[-1]]
+
+    def move(self, src: str, dst: str) -> None:
+        """Перемещает или переименовывает узел VFS.
+
+        Если dst — существующая папка, узел перемещается внутрь неё
+        под тем же именем. Иначе dst трактуется как новый путь узла.
+        """
+        src_parts = self._split(src)
+        if not src_parts:
+            raise VfsError("Нельзя переместить корень")
+
+        node = self.get(src)
+        if node is None:
+            raise VfsError(f"Источник не найден: {src}")
+
+        dst_parts = self._split(dst)
+        if not dst_parts:
+            raise VfsError("Некорректное назначение")
+
+        # Если dst — существующая папка, кладём внутрь неё под тем же именем
+        dst_node = self.get(dst)
+        if dst_node is not None and dst_node.is_dir:
+            dst_parts = dst_parts + [src_parts[-1]]
+
+        src_abs = PATH_SEPARATOR + PATH_SEPARATOR.join(src_parts)
+        dst_abs = PATH_SEPARATOR + PATH_SEPARATOR.join(dst_parts)
+
+        # Проверка: перемещаем папку внутрь себя или своего потомка
+        if node.is_dir and (
+            dst_abs == src_abs or dst_abs.startswith(src_abs + PATH_SEPARATOR)
+        ):
+            raise VfsError("Нельзя переместить папку внутрь себя")
+
+        # Если назначение уже существует — ошибка (без перезаписи)
+        if self.get(dst_abs) is not None:
+            raise VfsError(f"Назначение уже существует: {dst}")
+
+        src_parent = self.get(self._parent_path(src_parts))
+        dst_parent = self._ensure_parent(dst_parts[:-1])
+
+        if src_parent is None or dst_parent is None:
+            raise VfsError("Не удалось найти родительский каталог")
+
+        del src_parent.children[src_parts[-1]]
+        node.name = dst_parts[-1]
+        dst_parent.children[dst_parts[-1]] = node
+
     def to_rows(self) -> list[dict[str, str]]:
         """Сериализует VFS в список строк для CSV-сохранения."""
         rows: list[dict[str, str]] = []
@@ -104,6 +171,13 @@ class Vfs:
                 node.children[part] = existing
             node = existing
         return node
+
+    @staticmethod
+    def _parent_path(parts: list[str]) -> str:
+        """Возвращает путь родителя для разобранного пути."""
+        if len(parts) <= 1:
+            return PATH_SEPARATOR
+        return PATH_SEPARATOR + PATH_SEPARATOR.join(parts[:-1])
 
     @staticmethod
     def _split(path: str) -> list[str]:

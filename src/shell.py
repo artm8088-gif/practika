@@ -11,6 +11,8 @@ from .commands import (
     cmd_exit,
     cmd_history,
     cmd_ls,
+    cmd_mv,
+    cmd_rmdir,
     cmd_vfs_save,
 )
 from .vfs import Vfs
@@ -22,9 +24,12 @@ COMMANDS: dict[str, CommandHandler] = {
     "cd": cmd_cd,
     "history": cmd_history,
     "clear": cmd_clear,
+    "rmdir": cmd_rmdir,
+    "mv": cmd_mv,
     "vfs-save": cmd_vfs_save,
     "exit": cmd_exit,
 }
+
 
 UNKNOWN_COMMAND_TEMPLATE = "shell: command not found: {name}"
 SCRIPT_ERROR_TEMPLATE = "shell: script aborted at line {line}: {reason}"

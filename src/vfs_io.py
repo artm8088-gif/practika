@@ -13,7 +13,7 @@
 import csv
 from collections.abc import Sequence
 
-from .vfs import BASE64_PREFIX, DIR_TYPE, FILE_TYPE, Vfs, VfsError
+from .vfs import DIR_TYPE, FILE_TYPE, Vfs, VfsError
 
 REQUIRED_COLUMNS = ("type", "path", "content")
 VALID_TYPES = {DIR_TYPE, FILE_TYPE}
@@ -74,12 +74,6 @@ def _apply_row(vfs: Vfs, row: dict[str, str], line_no: int) -> None:
 
     if node_type == DIR_TYPE:
         vfs.add_dir(path)
-        return
-
-    if content.startswith(BASE64_PREFIX):
-        # Двоичные данные. Для этапа 3 достаточно сохранить как есть,
-        # декодирование не требуется для команд ls/cd.
-        vfs.add_file(path, content)
         return
 
     vfs.add_file(path, content)

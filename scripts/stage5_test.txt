@@ -1,0 +1,36 @@
+# Этап 5: тест rmdir и mv (только в памяти)
+
+# Посмотрим исходное состояние
+ls /
+ls /home/mark/projects
+
+# Переименование файла
+mv /home/mark/notes.txt /home/mark/notes_renamed.txt
+ls /home/mark
+
+# Перемещение файла в другую папку (папка — назначение)
+mv /home/mark/notes_renamed.txt /home/mark/projects
+ls /home/mark
+ls /home/mark/projects
+
+# Перемещение папки в другую папку
+mv /home/mark/projects/other /home/mark
+ls /home/mark
+ls /home/mark/projects
+
+# Удаление пустой папки
+rmdir /home/mark/other
+ls /home/mark
+
+# Ошибки
+rmdir /home/mark/projects          # папка не пуста
+rmdir /nonexistent                 # нет такой папки
+rmdir /home/mark/notes_renamed.txt # это файл (если он там)
+mv /nonexistent /tmp               # нет источника
+mv /home/mark /home/mark/projects  # папка внутрь себя
+mv /home/mark/notes.txt            # мало аргументов
+
+# Сохранение результата в CSV
+vfs-save /tmp/vfs_stage5.csv
+
+exit

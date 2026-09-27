@@ -278,6 +278,79 @@ exit
 make stage4
 ```
 
+## Этап 5 — Дополнительные команды
+
+На данном этапе добавлены команды, **изменяющие состояние VFS в памяти**:
+`rmdir` и `mv`. Исходный CSV-файл при этом не модифицируется — изменения
+сохраняются на диск только по команде `vfs-save`.
+
+### Возможности
+
+- Команда `rmdir <путь>` — удаление **пустой** папки:
+  - не удаляет корень `/`;
+  - ошибки: путь не существует, это не папка, папка не пуста.
+- Команда `mv <источник> <назначение>` — перемещение или переименование:
+  - если назначение — существующая папка → узел перемещается **внутрь** неё;
+  - если назначения нет → узел **переименовывается**;
+  - ошибки: источник не найден, назначение уже существует,
+    попытка переместить папку внутрь себя или своего потомка,
+    не переданы оба аргумента.
+- Все изменения происходят **только в памяти**: исходный CSV не меняется.
+
+### Команды
+
+| Команда                        | Описание                                            |
+|--------------------------------|-----------------------------------------------------|
+| `ls [путь]`                    | Список содержимого папки                            |
+| `cd <путь>`                    | Смена текущего каталога (`/`, `.`, `..` поддержаны) |
+| `history`                      | Показать историю введённых команд с нумерацией      |
+| `clear`                        | Очистить экран эмулятора                            |
+| `rmdir <путь>`                 | Удалить пустую папку                                |
+| `mv <источник> <назначение>`   | Переместить или переименовать файл/папку            |
+| `vfs-save <путь>`              | Сохранить состояние VFS в CSV-файл                  |
+| `exit`                         | Завершить работу                                    |
+
+### Стартовый скрипт `scripts/stage5_test.txt`
+
+Тестирует все режимы `rmdir` и `mv`, включая ошибки и работу с VFS:
+
+```
+# Этап 5: тест rmdir и mv (только в памяти)
+
+# Посмотрим исходное состояние
+ls /
+ls /home/mark/projects
+
+# Переименование файла
+mv /home/mark/notes.txt /home/mark/notes_renamed.txt
+ls /home/mark
+
+# Перемещение файла в другую папку
+mv /home/mark/notes_renamed.txt /home/mark/projects
+ls /home/mark
+ls /home/mark/projects
+
+# Перемещение папки в другую папку
+mv /home/mark/projects/other /home/mark
+ls /home/mark
+ls /home/mark/projects
+
+# Удаление пустой папки
+rmdir /home/mark/other
+ls /home/mark
+
+# Сохранение результата в CSV
+vfs-save /tmp/vfs_stage5.csv
+
+exit
+```
+
+Запуск:
+
+```bash
+make stage5
+```
+
 ## Установка и запуск
 
 ### Через `run.sh`
@@ -291,7 +364,7 @@ make stage4
 Можно передать параметры:
 
 ```bash
-./run.sh --vfs ./vfs/nested.csv --script ./scripts/stage4_test.txt
+./run.sh --vfs ./vfs/nested.csv --script ./scripts/stage5_test.txt
 ```
 
 ### Через `make`
@@ -311,13 +384,14 @@ make files      # запуск с vfs/files.csv
 make nested     # запуск с vfs/nested.csv
 make full-test  # запуск с vfs/nested.csv и scripts/full_test.txt
 make stage4     # запуск с vfs/nested.csv и scripts/stage4_test.txt
+make stage5     # запуск с vfs/nested.csv и scripts/stage5_test.txt
 ```
 
 ### Вручную через uv
 
 ```bash
 uv sync
-uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/stage4_test.txt
+uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/stage5_test.txt
 ```
 
 ## Использование
@@ -334,30 +408,40 @@ user@host:/home/mark$ ls
 notes.txt
 todo.txt
 
-user@host:/home/mark$ cd ..
-user@host:/home$ ls
-mark
+user@host:/home/mark$ mv notes.txt notes_renamed.txt
+Перемещено: /home/mark/notes.txt -> /home/mark/notes_renamed.txt
 
-user@host:/home$ history
+user@host:/home/mark$ ls
+notes_renamed.txt
+todo.txt
+
+user@host:/home/mark$ rmdir /tmp/empty
+Удалена папка: /tmp/empty
+
+user@host:/home/mark$ rmdir /home/mark
+Папка не пуста: /home/mark
+
+user@host:/home/mark$ mv /nonexistent /tmp
+Источник не найден: /nonexistent
+
+user@host:/home/mark$ vfs-save /tmp/vfs_saved.csv
+VFS сохранена в /tmp/vfs_saved.csv
+
+user@host:/home/mark$ history
 История команд:
    1  ls
    2  cd /home/mark
    3  ls
-   4  cd ..
+   4  mv notes.txt notes_renamed.txt
    5  ls
-   6  history
+   6  rmdir /tmp/empty
+   7  rmdir /home/mark
+   8  mv /nonexistent /tmp
+   9  vfs-save /tmp/vfs_saved.csv
+  10  history
 
-user@host:/home$ vfs-save /tmp/vfs_saved.csv
-VFS сохранена в /tmp/vfs_saved.csv
-
-user@host:/home$ cd /nonexistent
-Нет такого каталога: /nonexistent
-
-user@host:/home$ unknown
-shell: command not found: unknown
-
-user@host:/home$ clear
-user@host:/home$ exit
+user@host:/home/mark$ clear
+user@host:/home/mark$ exit
 exit: shutting down...
 ```
 
@@ -377,14 +461,15 @@ exit: shutting down...
 │   ├── main.py        # точка входа, GUI
 │   ├── config.py      # разбор CLI-параметров и debug-вывод
 │   ├── shell.py       # парсер, диспетчер команд, запуск скриптов, ShellState
-│   ├── commands.py    # реализация команд (ls, cd, history, clear, vfs-save, exit)
+│   ├── commands.py    # реализация команд (ls, cd, history, clear, rmdir, mv, vfs-save, exit)
 │   ├── vfs.py         # модель виртуальной файловой системы
 │   └── vfs_io.py      # загрузка и сохранение VFS в CSV
 ├── scripts/           # стартовые скрипты эмулятора
 │   ├── demo.txt
 │   ├── errors.txt
 │   ├── full_test.txt
-│   └── stage4_test.txt
+│   ├── stage4_test.txt
+│   └── stage5_test.txt
 ├── examples/          # скрипты реальной ОС для запуска эмулятора
 │   ├── run_default.sh
 │   ├── run_with_vfs.sh

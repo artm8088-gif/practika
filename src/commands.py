@@ -115,3 +115,28 @@ def _normalize(path: str) -> str:
     """Нормализует путь: убирает дублирующие слэши и висячий слэш."""
     parts = [p for p in path.split(PATH_SEPARATOR) if p]
     return PATH_SEPARATOR + PATH_SEPARATOR.join(parts) if parts else PATH_SEPARATOR
+
+
+def cmd_rmdir(args: list[str], vfs: Vfs, cwd: str, history: list[str]) -> CommandResult:
+    """Реализация команды `rmdir`: удаляет пустую папку."""
+    if not args:
+        raise CommandError("Использование: rmdir <путь>")
+    path = _resolve(args[0], cwd)
+    try:
+        vfs.remove_dir(path)
+    except VfsError as exc:
+        raise CommandError(str(exc))
+    return CommandResult(output=f"Удалена папка: {path}", cwd=cwd)
+
+
+def cmd_mv(args: list[str], vfs: Vfs, cwd: str, history: list[str]) -> CommandResult:
+    """Реализация команды `mv`: перемещение или переименование."""
+    if len(args) != 2:
+        raise CommandError("Использование: mv <источник> <назначение>")
+    src = _resolve(args[0], cwd)
+    dst = _resolve(args[1], cwd)
+    try:
+        vfs.move(src, dst)
+    except VfsError as exc:
+        raise CommandError(str(exc))
+    return CommandResult(output=f"Перемещено: {src} -> {dst}", cwd=cwd)
