@@ -1,27 +1,42 @@
 """Основная логика REPL: разбор ввода, диспетчеризация, запуск скриптов."""
 
 from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from .commands import (
     CommandError,
+    CommandResult,
     cmd_cd,
+    cmd_clear,
     cmd_exit,
+    cmd_history,
     cmd_ls,
     cmd_vfs_save,
 )
 from .vfs import Vfs
 
-CommandHandler = Callable[[list[str], Vfs, str], tuple[str, str]]
+CommandHandler = Callable[[list[str], Vfs, str, list[str]], CommandResult]
 
 COMMANDS: dict[str, CommandHandler] = {
     "ls": cmd_ls,
     "cd": cmd_cd,
+    "history": cmd_history,
+    "clear": cmd_clear,
     "vfs-save": cmd_vfs_save,
     "exit": cmd_exit,
 }
 
 UNKNOWN_COMMAND_TEMPLATE = "shell: command not found: {name}"
 SCRIPT_ERROR_TEMPLATE = "shell: script aborted at line {line}: {reason}"
+INITIAL_CWD = "/"
+
+
+@dataclass
+class ShellState:
+    """Состояние оболочки: текущий каталог и история команд."""
+
+    cwd: str = INITIAL_CWD
+    history: list[str] = field(default_factory=list)
 
 
 def parse_input(raw: str) -> tuple[str, list[str]]:
@@ -37,23 +52,30 @@ def is_exit(command: str) -> bool:
     return command == "exit"
 
 
-def execute(raw: str, vfs: Vfs, cwd: str) -> tuple[str, str]:
+def execute(raw: str, vfs: Vfs, state: ShellState) -> CommandResult:
     """Выполняет одну строку пользовательского ввода.
 
-    Возвращает пару (вывод, новый рабочий каталог).
+    Обновляет историю команд в state (кроме пустых строк).
     """
     command, args = parse_input(raw)
     if not command:
-        return "", cwd
+        return CommandResult(cwd=state.cwd)
 
-    handler = COMMANDS.get(command)
-    if handler is None:
-        return UNKNOWN_COMMAND_TEMPLATE.format(name=command), cwd
+    if command not in COMMANDS:
+        state.history.append(raw.strip())
+        return CommandResult(
+            output=UNKNOWN_COMMAND_TEMPLATE.format(name=command), cwd=state.cwd
+        )
+
+    state.history.append(raw.strip())
 
     try:
-        return handler(args, vfs, cwd)
+        result = COMMANDS[command](args, vfs, state.cwd, state.history)
     except CommandError as exc:
-        return str(exc), cwd
+        return CommandResult(output=str(exc), cwd=state.cwd)
+
+    state.cwd = result.cwd
+    return result
 
 
 def read_script(path: str) -> list[str]:
@@ -68,24 +90,30 @@ def read_script(path: str) -> list[str]:
     return lines
 
 
-def run_script(path: str, vfs: Vfs) -> list[tuple[str, str]]:
+def run_script(path: str, vfs: Vfs) -> list[tuple[str, CommandResult]]:
     """Выполняет стартовый скрипт построчно.
 
     Останавливается на первой строке, вызвавшей ошибку.
-    Возвращает список пар (ввод, вывод).
+    Возвращает список пар (ввод, результат).
     """
-    results: list[tuple[str, str]] = []
-    cwd = "/"
+    results: list[tuple[str, CommandResult]] = []
+    state = ShellState()
     for index, line in enumerate(read_script(path), start=1):
         command, _ = parse_input(line)
         if command not in COMMANDS:
             reason = UNKNOWN_COMMAND_TEMPLATE.format(name=command)
             results.append(
-                (line, SCRIPT_ERROR_TEMPLATE.format(line=index, reason=reason))
+                (
+                    line,
+                    CommandResult(
+                        output=SCRIPT_ERROR_TEMPLATE.format(line=index, reason=reason),
+                        cwd=state.cwd,
+                    ),
+                )
             )
             break
-        output, cwd = execute(line, vfs, cwd)
-        results.append((line, output))
+        result = execute(line, vfs, state)
+        results.append((line, result))
         if is_exit(command):
             break
     return results

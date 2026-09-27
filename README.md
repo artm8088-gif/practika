@@ -213,16 +213,69 @@ unknown_command
 exit
 ```
 
-## Требования
+## Этап 4 — Основные команды
 
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) — менеджер зависимостей и окружений
-- Linux, macOS или Windows (разработка велась на Pop!_OS)
+На данном этапе реализованы полноценные `ls` и `cd`, а также добавлены
+новые команды `history` и `clear`.
 
-### Установка uv (если ещё не установлен)
+### Возможности
+
+- Полноценная логика `ls` и `cd` поверх VFS:
+  - поддержка абсолютных и относительных путей;
+  - поддержка `.` (текущий каталог) и `..` (родительский каталог);
+  - `cd` без аргументов возвращает в корень `/`;
+  - корректная обработка ошибок (нет такого каталога, не каталог).
+- Команда `history` — выводит историю введённых команд с нумерацией.
+- Команда `clear` — очищает экран эмулятора, сохраняя историю команд.
+- Состояние сессии (`cwd`, история) хранится в `ShellState`.
+
+### Команды
+
+| Команда             | Описание                                            |
+|---------------------|-----------------------------------------------------|
+| `ls [путь]`         | Список содержимого папки                            |
+| `cd <путь>`         | Смена текущего каталога (`/`, `.`, `..` поддержаны) |
+| `history`           | Показать историю введённых команд с нумерацией      |
+| `clear`             | Очистить экран эмулятора                            |
+| `vfs-save <путь>`   | Сохранить состояние VFS в CSV-файл                  |
+| `exit`              | Завершить работу                                    |
+
+### Особенности
+
+- `cd` без аргументов возвращает в корень `/`;
+- `cd ..` переходит в родительский каталог;
+- `cd .` оставляет текущий каталог;
+- `history` нумерует команды и печатает их списком;
+- `clear` очищает только окно вывода, история при этом сохраняется —
+  это можно проверить, набрав `history` сразу после `clear`.
+
+### Стартовый скрипт `scripts/stage4_test.txt`
+
+Тестирует все команды этапа, включая работу с VFS и обработку ошибок:
+
+```
+# Этап 4: тест ls, cd, history, clear и обработки ошибок
+ls
+cd /home
+ls
+cd mark
+ls
+cd ..
+ls
+cd /nonexistent
+ls /nonexistent
+history
+vfs-save /tmp/vfs_stage4.csv
+clear
+ls
+history
+exit
+```
+
+Запуск:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+make stage4
 ```
 
 ## Установка и запуск
@@ -238,7 +291,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Можно передать параметры:
 
 ```bash
-./run.sh --vfs ./vfs/nested.csv --script ./scripts/full_test.txt
+./run.sh --vfs ./vfs/nested.csv --script ./scripts/stage4_test.txt
 ```
 
 ### Через `make`
@@ -257,13 +310,14 @@ make minimal    # запуск с vfs/minimal.csv
 make files      # запуск с vfs/files.csv
 make nested     # запуск с vfs/nested.csv
 make full-test  # запуск с vfs/nested.csv и scripts/full_test.txt
+make stage4     # запуск с vfs/nested.csv и scripts/stage4_test.txt
 ```
 
 ### Вручную через uv
 
 ```bash
 uv sync
-uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/full_test.txt
+uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/stage4_test.txt
 ```
 
 ## Использование
@@ -280,16 +334,30 @@ user@host:/home/mark$ ls
 notes.txt
 todo.txt
 
-user@host:/home/mark$ vfs-save /tmp/vfs_saved.csv
+user@host:/home/mark$ cd ..
+user@host:/home$ ls
+mark
+
+user@host:/home$ history
+История команд:
+   1  ls
+   2  cd /home/mark
+   3  ls
+   4  cd ..
+   5  ls
+   6  history
+
+user@host:/home$ vfs-save /tmp/vfs_saved.csv
 VFS сохранена в /tmp/vfs_saved.csv
 
-user@host:/home/mark$ cd /nonexistent
+user@host:/home$ cd /nonexistent
 Нет такого каталога: /nonexistent
 
-user@host:/home/mark$ unknown
+user@host:/home$ unknown
 shell: command not found: unknown
 
-user@host:/home/mark$ exit
+user@host:/home$ clear
+user@host:/home$ exit
 exit: shutting down...
 ```
 
@@ -308,14 +376,15 @@ exit: shutting down...
 │   ├── __init__.py
 │   ├── main.py        # точка входа, GUI
 │   ├── config.py      # разбор CLI-параметров и debug-вывод
-│   ├── shell.py       # парсер, диспетчер команд, запуск скриптов
-│   ├── commands.py    # реализация команд (ls, cd, vfs-save, exit)
+│   ├── shell.py       # парсер, диспетчер команд, запуск скриптов, ShellState
+│   ├── commands.py    # реализация команд (ls, cd, history, clear, vfs-save, exit)
 │   ├── vfs.py         # модель виртуальной файловой системы
 │   └── vfs_io.py      # загрузка и сохранение VFS в CSV
 ├── scripts/           # стартовые скрипты эмулятора
 │   ├── demo.txt
 │   ├── errors.txt
-│   └── full_test.txt
+│   ├── full_test.txt
+│   └── stage4_test.txt
 ├── examples/          # скрипты реальной ОС для запуска эмулятора
 │   ├── run_default.sh
 │   ├── run_with_vfs.sh
@@ -329,24 +398,4 @@ exit: shutting down...
 │   └── nested.csv
 └── tests/             # зарезервировано под будущие тесты
     └── .gitkeep
-```
-
-## Соглашение о коммитах
-
-Проект следует спецификации
-[Conventional Commits](https://www.conventionalcommits.org/).
-
-Примеры сообщений:
-
-```
-chore: инициализировать uv-проект
-feat(commands): добавить заглушки команд ls, cd и exit
-feat(parser): реализовать разбор ввода на команду и аргументы
-feat(gui): добавить окно на customtkinter с динамическим заголовком
-feat(config): добавить разбор параметров --vfs и --script
-feat(script): реализовать выполнение стартового скрипта с остановкой при ошибке
-feat(vfs): добавить модель виртуальной файловой системы в памяти
-feat(vfs): реализовать загрузку и сохранение VFS в формате CSV
-feat(commands): реализовать ls, cd и vfs-save поверх VFS
-docs: описать этап 3 (VFS, CSV, vfs-save)
 ```

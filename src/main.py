@@ -7,7 +7,7 @@ import sys
 import customtkinter as ctk
 
 from .config import Config, debug_dump, parse_args
-from .shell import execute, is_exit, run_script
+from .shell import ShellState, execute, is_exit, run_script
 from .vfs import Vfs, VfsError
 from .vfs_io import load_vfs
 
@@ -18,7 +18,6 @@ FONT_FAMILY = "JetBrains Mono"
 FONT_SIZE = 14
 PADDING = 10
 SCRIPT_REPLAY_DELAY_MS = 400
-INITIAL_CWD = "/"
 
 
 def build_title() -> str:
@@ -42,7 +41,7 @@ class ShellApp(ctk.CTk):
         super().__init__()
         self.config = config
         self.vfs = vfs
-        self.cwd = INITIAL_CWD
+        self.shell_state = ShellState()
         self.title(build_title())
         self.geometry(WINDOW_SIZE)
         self._build_widgets()
@@ -59,7 +58,7 @@ class ShellApp(ctk.CTk):
         self.entry = ctk.CTkEntry(
             self,
             font=(FONT_FAMILY, FONT_SIZE),
-            placeholder_text="Type a command and press Enter (try: ls, cd, vfs-save, exit)",
+            placeholder_text="Type a command and press Enter (try: ls, cd, history, clear)",
         )
         self.entry.pack(fill="x", padx=PADDING, pady=PADDING)
         self.entry.bind("<Return>", self._on_submit)
@@ -69,7 +68,7 @@ class ShellApp(ctk.CTk):
 
     def _prompt(self) -> str:
         """Возвращает текущее приглашение оболочки."""
-        return build_prompt(self.cwd)
+        return build_prompt(self.shell_state.cwd)
 
     def _append(self, text: str) -> None:
         """Добавляет текст в область вывода."""
@@ -78,17 +77,29 @@ class ShellApp(ctk.CTk):
         self.output.see("end")
         self.output.configure(state="disabled")
 
+    def _clear_output(self) -> None:
+        """Очищает область вывода."""
+        self.output.configure(state="normal")
+        self.output.delete("1.0", "end")
+        self.output.configure(state="disabled")
+
     def _on_submit(self, _event) -> None:
         """Обрабатывает Enter: читает ввод, выполняет его, печатает результат."""
         raw = self.entry.get()
         self.entry.delete(0, "end")
-        self._append(raw + "\n")
 
-        command, _ = parse_input_safe(raw)
-        output, new_cwd = execute(raw, self.vfs, self.cwd)
-        self.cwd = new_cwd
-        if output:
-            self._append(output + "\n")
+        command, _ = _split_command(raw)
+        if command == "clear":
+            self._clear_output()
+            execute(raw, self.vfs, self.shell_state)
+            self._append(self._prompt())
+            return
+
+        self._append(raw + "\n")
+        result = execute(raw, self.vfs, self.shell_state)
+
+        if result.output:
+            self._append(result.output + "\n")
 
         if is_exit(command):
             self.after(SCRIPT_REPLAY_DELAY_MS, self.destroy)
@@ -102,27 +113,30 @@ class ShellApp(ctk.CTk):
             return
         pairs = run_script(self.config.script_path, self.vfs)
         delay = SCRIPT_REPLAY_DELAY_MS
-        for index, (line, output) in enumerate(pairs):
+        for index, (line, result) in enumerate(pairs):
             self.after(
                 delay * (index + 1),
                 self._emit_pair,
                 line,
-                output,
+                result,
                 index == len(pairs) - 1,
             )
 
-    def _emit_pair(self, line: str, output: str, is_last: bool) -> None:
+    def _emit_pair(self, line: str, result, is_last: bool) -> None:
         """Печатает одну пару (ввод, вывод), имитируя сессию."""
-        self._append(line + "\n")
-        if output:
-            self._append(output + "\n")
-        self._append(self._prompt())
+        if result.clear:
+            self._clear_output()
+        else:
+            self._append(line + "\n")
+            if result.output:
+                self._append(result.output + "\n")
+        self._append(build_prompt(result.cwd))
         if is_last:
             self.entry.configure(state="normal")
             self.entry.focus_set()
 
 
-def parse_input_safe(raw: str):
+def _split_command(raw: str):
     """Безопасно извлекает имя команды из строки."""
     parts = raw.strip().split()
     return (parts[0] if parts else "", parts[1:] if parts else [])
