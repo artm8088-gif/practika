@@ -351,6 +351,35 @@ exit
 make stage5
 ```
 
+## Тесты
+
+В проекте есть unit-тесты на логику без GUI: парсер ввода, модель VFS,
+загрузка/сохранение CSV и разбор путей. GUI (`customtkinter`) тестами
+не покрыт — интерфейс проверяется вручную.
+
+### Что покрыто
+
+| Файл                    | Что тестирует                                              |
+|-------------------------|------------------------------------------------------------|
+| `tests/test_parser.py`  | Разбор пользовательского ввода (`parse_input`)             |
+| `tests/test_commands.py`| Разбор путей (`_resolve`): абсолютные, `.`, `..`           |
+| `tests/test_vfs.py`     | Модель VFS: создание, `remove_dir`, `move`, ошибки         |
+| `tests/test_vfs_io.py`  | Загрузка/сохранение CSV, битый формат, round-trip          |
+
+### Запуск
+
+```bash
+make test
+```
+
+или напрямую:
+
+```bash
+uv run pytest -v
+```
+
+Ожидаемо: **21 тест**, все проходят.
+
 ## Установка и запуск
 
 ### Через `run.sh`
@@ -385,6 +414,7 @@ make nested     # запуск с vfs/nested.csv
 make full-test  # запуск с vfs/nested.csv и scripts/full_test.txt
 make stage4     # запуск с vfs/nested.csv и scripts/stage4_test.txt
 make stage5     # запуск с vfs/nested.csv и scripts/stage5_test.txt
+make test       # запуск unit-тестов
 ```
 
 ### Вручную через uv
@@ -481,6 +511,10 @@ exit: shutting down...
 │   ├── minimal.csv
 │   ├── files.csv
 │   └── nested.csv
-└── tests/             # зарезервировано под будущие тесты
-    └── .gitkeep
+└── tests/             # unit-тесты логики (без GUI)
+    ├── __init__.py
+    ├── test_commands.py
+    ├── test_parser.py
+    ├── test_vfs.py
+    └── test_vfs_io.py
 ```
