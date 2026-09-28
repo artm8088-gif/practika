@@ -45,8 +45,9 @@ class ShellState:
 
 
 def parse_input(raw: str) -> tuple[str, list[str]]:
-    """Разбирает ввод пользователя на имя команды и список аргументов."""
-    parts = raw.strip().split()
+    """Разбирает ввод, отбрасывая комментарий после #."""
+    line = raw.split("#", 1)[0].strip()
+    parts = line.split()
     if not parts:
         return "", []
     return parts[0], parts[1:]
