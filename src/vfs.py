@@ -10,6 +10,7 @@ DIR_TYPE = "dir"
 FILE_TYPE = "file"
 BASE64_PREFIX = "base64:"
 PATH_SEPARATOR = "/"
+MIN_PATH_PARTS = 1
 
 
 @dataclass
@@ -35,6 +36,7 @@ class Vfs:
     """Виртуальная файловая система в памяти."""
 
     def __init__(self) -> None:
+        """Конструктор."""
         self.root = VfsNode(name=PATH_SEPARATOR, node_type=DIR_TYPE)
 
     def add_dir(self, path: str) -> None:
@@ -109,37 +111,16 @@ class Vfs:
         if node is None:
             raise VfsError(f"Источник не найден: {src}")
 
-        dst_parts = self._split(dst)
+        dst_parts = self._resolve_dst_parts(dst, src_parts)
         if not dst_parts:
             raise VfsError("Некорректное назначение")
 
-        # Если dst — существующая папка, кладём внутрь неё под тем же именем
-        dst_node = self.get(dst)
-        if dst_node is not None and dst_node.is_dir:
-            dst_parts = dst_parts + [src_parts[-1]]
+        src_abs = self._abs(src_parts)
+        dst_abs = self._abs(dst_parts)
 
-        src_abs = PATH_SEPARATOR + PATH_SEPARATOR.join(src_parts)
-        dst_abs = PATH_SEPARATOR + PATH_SEPARATOR.join(dst_parts)
-
-        # Проверка: перемещаем папку внутрь себя или своего потомка
-        if node.is_dir and (
-            dst_abs == src_abs or dst_abs.startswith(src_abs + PATH_SEPARATOR)
-        ):
-            raise VfsError("Нельзя переместить папку внутрь себя")
-
-        # Если назначение уже существует — ошибка (без перезаписи)
-        if self.get(dst_abs) is not None:
-            raise VfsError(f"Назначение уже существует: {dst}")
-
-        src_parent = self.get(self._parent_path(src_parts))
-        dst_parent = self._ensure_parent(dst_parts[:-1])
-
-        if src_parent is None or dst_parent is None:
-            raise VfsError("Не удалось найти родительский каталог")
-
-        del src_parent.children[src_parts[-1]]
-        node.name = dst_parts[-1]
-        dst_parent.children[dst_parts[-1]] = node
+        self._check_not_into_itself(node, src_abs, dst_abs)
+        self._check_dst_not_exists(dst_abs, dst)
+        self._detach_and_attach(src_parts, dst_parts, node)
 
     def to_rows(self) -> list[dict[str, str]]:
         """Сериализует VFS в список строк для CSV-сохранения."""
@@ -147,7 +128,12 @@ class Vfs:
         self._walk(self.root, "", rows)
         return rows
 
-    def _walk(self, node: VfsNode, prefix: str, rows: list[dict[str, str]]) -> None:
+    def _walk(
+        self,
+        node: VfsNode,
+        prefix: str,
+        rows: list[dict[str, str]],
+    ) -> None:
         """Рекурсивно обходит дерево и собирает строки."""
         for name, child in sorted(node.children.items()):
             path = (
@@ -156,10 +142,54 @@ class Vfs:
                 else f"{PATH_SEPARATOR}{name}"
             )
             rows.append(
-                {"type": child.node_type, "path": path, "content": child.content}
+                {
+                    "type": child.node_type,
+                    "path": path,
+                    "content": child.content,
+                }
             )
             if child.is_dir:
                 self._walk(child, path, rows)
+
+    def _resolve_dst_parts(self, dst: str, src_parts: list[str]) -> list[str]:
+        """Вычисляет компоненты целевого пути с учётом семантики mv.
+
+        Если dst указывает на существующую папку, узел кладётся
+        внутрь неё под тем же именем, что и источник.
+        """
+        dst_parts = self._split(dst)
+        dst_node = self.get(dst)
+        if dst_node is not None and dst_node.is_dir:
+            dst_parts = dst_parts + [src_parts[-1]]
+        return dst_parts
+
+    def _check_not_into_itself(
+        self, node: VfsNode, src_abs: str, dst_abs: str
+    ) -> None:
+        """Проверяет, что папка не перемещается внутрь себя или потомка."""
+        if not node.is_dir:
+            return
+        into_itself = dst_abs == src_abs
+        into_child = dst_abs.startswith(src_abs + PATH_SEPARATOR)
+        if into_itself or into_child:
+            raise VfsError("Нельзя переместить папку внутрь себя")
+
+    def _check_dst_not_exists(self, dst_abs: str, dst: str) -> None:
+        """Проверяет, что назначение не занято (перезапись запрещена)."""
+        if self.get(dst_abs) is not None:
+            raise VfsError(f"Назначение уже существует: {dst}")
+
+    def _detach_and_attach(
+        self, src_parts: list[str], dst_parts: list[str], node: VfsNode
+    ) -> None:
+        """Отсоединяет узел от старого родителя и присоединяет к новому."""
+        src_parent = self.get(self._parent_path(src_parts))
+        dst_parent = self._ensure_parent(dst_parts[:-1])
+        if src_parent is None or dst_parent is None:
+            raise VfsError("Не удалось найти родительский каталог")
+        del src_parent.children[src_parts[-1]]
+        node.name = dst_parts[-1]
+        dst_parent.children[dst_parts[-1]] = node
 
     def _ensure_parent(self, parts: list[str]) -> VfsNode:
         """Гарантирует, что все родительские папки существуют."""
@@ -175,7 +205,7 @@ class Vfs:
     @staticmethod
     def _parent_path(parts: list[str]) -> str:
         """Возвращает путь родителя для разобранного пути."""
-        if len(parts) <= 1:
+        if len(parts) <= MIN_PATH_PARTS:
             return PATH_SEPARATOR
         return PATH_SEPARATOR + PATH_SEPARATOR.join(parts[:-1])
 
@@ -183,3 +213,8 @@ class Vfs:
     def _split(path: str) -> list[str]:
         """Разбивает путь на компоненты, отбрасывая пустые части."""
         return [p for p in path.split(PATH_SEPARATOR) if p]
+
+    @staticmethod
+    def _abs(parts: list[str]) -> str:
+        """Собирает абсолютный путь из разобранных компонентов."""
+        return PATH_SEPARATOR + PATH_SEPARATOR.join(parts)

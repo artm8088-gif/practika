@@ -13,4 +13,29 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.16.9",
 ]
+[tool.ruff]
+line-length = 80
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors (включая E501 — длинные строки)
+    "F",   # pyflakes
+    "W",   # warnings
+    "I",   # isort
+    "N",   # pep8-naming
+    "C90", # mccabe (цикломатическая сложность)
+    "D",   # pydocstyle (docstring)
+]
+ignore = [
+    "D203",  # конфликт с D211
+    "D213",  # конфликт с D212
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

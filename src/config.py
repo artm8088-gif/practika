@@ -41,20 +41,32 @@ def parse_args(argv=None) -> Config:
     """Разбирает аргументы CLI и возвращает объект Config."""
     parser = build_parser()
     args = parser.parse_args(argv)
-    return Config(
-        vfs_path=os.path.abspath(args.vfs_path),
-        script_path=os.path.abspath(args.script_path) if args.script_path else "",
-    )
+    vfs_path = os.path.abspath(args.vfs_path)
+    script_path = _resolve_script_path(args.script_path)
+    return Config(vfs_path=vfs_path, script_path=script_path)
 
 
 def debug_dump(config: Config) -> str:
     """Возвращает отладочную строку со всеми итоговыми параметрами."""
+    vfs_exists = os.path.isfile(config.vfs_path)
+    script_display = config.script_path or "(не задан)"
+    script_exists = _script_exists(config.script_path)
     lines = [
         "=== Конфигурация эмулятора оболочки ===",
         f"CSV VFS        : {config.vfs_path}",
-        f"VFS существует : {os.path.isfile(config.vfs_path)}",
-        f"Путь к скрипту : {config.script_path or '(не задан)'}",
-        f"Файл скрипта   : {os.path.isfile(config.script_path) if config.script_path else False}",
+        f"VFS существует : {vfs_exists}",
+        f"Путь к скрипту : {script_display}",
+        f"Файл скрипта   : {script_exists}",
         "======================================",
     ]
     return "\n".join(lines)
+
+
+def _resolve_script_path(raw: str) -> str:
+    """Возвращает абсолютный путь к скрипту или пустую строку."""
+    return os.path.abspath(raw) if raw else ""
+
+
+def _script_exists(path: str) -> bool:
+    """Возвращает True, если скрипт задан и существует."""
+    return bool(path) and os.path.isfile(path)

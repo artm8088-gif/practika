@@ -34,6 +34,7 @@ COMMANDS: dict[str, CommandHandler] = {
 UNKNOWN_COMMAND_TEMPLATE = "shell: command not found: {name}"
 SCRIPT_ERROR_TEMPLATE = "shell: script aborted at line {line}: {reason}"
 INITIAL_CWD = "/"
+COMMENT_MARKER = "#"
 
 
 @dataclass
@@ -46,7 +47,7 @@ class ShellState:
 
 def parse_input(raw: str) -> tuple[str, list[str]]:
     """Разбирает ввод, отбрасывая комментарий после #."""
-    line = raw.split("#", 1)[0].strip()
+    line = raw.split(COMMENT_MARKER, 1)[0].strip()
     parts = line.split()
     if not parts:
         return "", []
@@ -67,13 +68,13 @@ def execute(raw: str, vfs: Vfs, state: ShellState) -> CommandResult:
     if not command:
         return CommandResult(cwd=state.cwd)
 
-    if command not in COMMANDS:
-        state.history.append(raw.strip())
-        return CommandResult(
-            output=UNKNOWN_COMMAND_TEMPLATE.format(name=command), cwd=state.cwd
-        )
-
     state.history.append(raw.strip())
+
+    if command not in COMMANDS:
+        return CommandResult(
+            output=UNKNOWN_COMMAND_TEMPLATE.format(name=command),
+            cwd=state.cwd,
+        )
 
     try:
         result = COMMANDS[command](args, vfs, state.cwd, state.history)
@@ -90,7 +91,7 @@ def read_script(path: str) -> list[str]:
     with open(path, "r", encoding="utf-8") as fh:
         for raw in fh:
             stripped = raw.strip()
-            if not stripped or stripped.startswith("#"):
+            if not stripped or stripped.startswith(COMMENT_MARKER):
                 continue
             lines.append(stripped)
     return lines
@@ -107,19 +108,18 @@ def run_script(path: str, vfs: Vfs) -> list[tuple[str, CommandResult]]:
     for index, line in enumerate(read_script(path), start=1):
         command, _ = parse_input(line)
         if command not in COMMANDS:
-            reason = UNKNOWN_COMMAND_TEMPLATE.format(name=command)
-            results.append(
-                (
-                    line,
-                    CommandResult(
-                        output=SCRIPT_ERROR_TEMPLATE.format(line=index, reason=reason),
-                        cwd=state.cwd,
-                    ),
-                )
-            )
+            results.append(_script_error(line, index, state.cwd))
             break
         result = execute(line, vfs, state)
         results.append((line, result))
         if is_exit(command):
             break
     return results
+
+
+def _script_error(line: str, index: int, cwd: str) -> tuple[str, CommandResult]:
+    """Формирует пару (строка, результат) для ошибки в скрипте."""
+    command, _ = parse_input(line)
+    reason = UNKNOWN_COMMAND_TEMPLATE.format(name=command)
+    output = SCRIPT_ERROR_TEMPLATE.format(line=index, reason=reason)
+    return line, CommandResult(output=output, cwd=cwd)

@@ -6,6 +6,7 @@ import sys
 
 import customtkinter as ctk
 
+from .commands import CommandResult
 from .config import Config, debug_dump, parse_args
 from .shell import ShellState, execute, is_exit, run_script
 from .vfs import Vfs, VfsError
@@ -14,10 +15,12 @@ from .vfs_io import load_vfs
 WINDOW_TITLE_TEMPLATE = "Shell Emulator - [{user}@{host}]"
 WINDOW_SIZE = "900x600"
 PROMPT_TEMPLATE = "{user}@{host}:{cwd}$ "
+PLACEHOLDER_T = "Type a command and press Enter (try: ls, cd, history, clear)"
 FONT_FAMILY = "JetBrains Mono"
 FONT_SIZE = 14
 PADDING = 10
 SCRIPT_REPLAY_DELAY_MS = 400
+INITIAL_REPLAY_DELAY_MS = 200
 
 
 def build_title() -> str:
@@ -38,6 +41,7 @@ class ShellApp(ctk.CTk):
     """Главное окно приложения с интерфейсом эмулятора терминала."""
 
     def __init__(self, config: Config, vfs: Vfs) -> None:
+        """Создаёт главное окно с указанной конфигурацией и VFS."""
         super().__init__()
         self.config = config
         self.vfs = vfs
@@ -51,14 +55,23 @@ class ShellApp(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.output = ctk.CTkTextbox(self, font=(FONT_FAMILY, FONT_SIZE), wrap="word")
-        self.output.pack(fill="both", expand=True, padx=PADDING, pady=(PADDING, 0))
+        self.output = ctk.CTkTextbox(
+            self,
+            font=(FONT_FAMILY, FONT_SIZE),
+            wrap="word",
+        )
+        self.output.pack(
+            fill="both",
+            expand=True,
+            padx=PADDING,
+            pady=(PADDING, 0),
+        )
         self.output.configure(state="disabled")
 
         self.entry = ctk.CTkEntry(
             self,
             font=(FONT_FAMILY, FONT_SIZE),
-            placeholder_text="Type a command and press Enter (try: ls, cd, history, clear)",
+            placeholder_text=PLACEHOLDER_T,
         )
         self.entry.pack(fill="x", padx=PADDING, pady=PADDING)
         self.entry.bind("<Return>", self._on_submit)
@@ -84,7 +97,7 @@ class ShellApp(ctk.CTk):
         self.output.configure(state="disabled")
 
     def _on_submit(self, _event) -> None:
-        """Обрабатывает Enter: читает ввод, выполняет его, печатает результат."""
+        """Обрабатывает Enter читает ввод, выполняет его, печатает результат."""
         raw = self.entry.get()
         self.entry.delete(0, "end")
 
@@ -114,15 +127,21 @@ class ShellApp(ctk.CTk):
         pairs = run_script(self.config.script_path, self.vfs)
         delay = SCRIPT_REPLAY_DELAY_MS
         for index, (line, result) in enumerate(pairs):
+            is_last = index == len(pairs) - 1
             self.after(
                 delay * (index + 1),
                 self._emit_pair,
                 line,
                 result,
-                index == len(pairs) - 1,
+                is_last,
             )
 
-    def _emit_pair(self, line: str, result, is_last: bool) -> None:
+    def _emit_pair(
+        self,
+        line: str,
+        result: CommandResult,
+        is_last: bool,
+    ) -> None:
         """Печатает одну пару (ввод, вывод), имитируя сессию."""
         if result.clear:
             self._clear_output()
@@ -136,10 +155,12 @@ class ShellApp(ctk.CTk):
             self.entry.focus_set()
 
 
-def _split_command(raw: str):
-    """Безопасно извлекает имя команды из строки."""
+def _split_command(raw: str) -> tuple[str, list[str]]:
+    """Безопасно извлекает имя команды и аргументы из строки."""
     parts = raw.strip().split()
-    return (parts[0] if parts else "", parts[1:] if parts else [])
+    if not parts:
+        return "", []
+    return parts[0], parts[1:]
 
 
 def main() -> None:
@@ -154,7 +175,7 @@ def main() -> None:
         return
 
     app = ShellApp(config, vfs)
-    app.after(200, app.replay_script)
+    app.after(INITIAL_REPLAY_DELAY_MS, app.replay_script)
     app.mainloop()
 
 
