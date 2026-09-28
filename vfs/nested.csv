@@ -1,6 +1,8 @@
 type,path,content
 dir,/home,
 dir,/home/mark,
+file,/home/mark/notes.txt,Hello world
+file,/home/mark/todo.txt,Shopping list
 dir,/home/mark/projects,
 dir,/home/mark/projects/emulator,
 file,/home/mark/projects/emulator/main.py,print('hello')
