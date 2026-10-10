@@ -1,4 +1,4 @@
-"""Реализация команд эмулятора оболочки для этапа 4."""
+"""Реализация команд эмулятора оболочки для этапа 5."""
 
 from .vfs_io import VFSError, save_vfs_to_csv
 
@@ -60,6 +60,55 @@ def cmd_vfs_save(args: list[str], state) -> str:
         return f"VFS successfully saved to {dest_path}"
     except VFSError as e:
         return f"vfs-save error: {e}"
+
+
+def cmd_rmdir(args: list[str], state) -> str:
+    """Команда `rmdir <путь>`: удаление пустого каталога."""
+    if not args:
+        return "rmdir: missing operand"
+
+    target_arg = args[0]
+    resolved_path = state.resolve_path(target_arg)
+
+    node = state.vfs.get_node(resolved_path)
+    if node is None:
+        return f"rmdir: failed to remove '{target_arg}': No such file or directory"
+    if not node.is_dir:
+        return f"rmdir: failed to remove '{target_arg}': Not a directory"
+
+    try:
+        success = state.vfs.remove_node(resolved_path)
+        if not success:
+            return f"rmdir: failed to remove '{target_arg}': Permission denied or root"
+    except ValueError:
+        return f"rmdir: failed to remove '{target_arg}': Directory not empty"
+
+    return ""
+
+
+def cmd_mv(args: list[str], state) -> str:
+    """Команда `mv <источник> <назначение>`: перемещение или переименование."""
+    if len(args) < 2:
+        return "mv: missing file operand"
+
+    src_arg = args[0]
+    dest_arg = args[1]
+
+    src_resolved = state.resolve_path(src_arg)
+    dest_resolved = state.resolve_path(dest_arg)
+
+    node = state.vfs.get_node(src_resolved)
+    if node is None:
+        return f"mv: cannot stat '{src_arg}': No such file or directory"
+
+    try:
+        success = state.vfs.move_node(src_resolved, dest_resolved)
+        if not success:
+            return f"mv: cannot move '{src_arg}' to '{dest_arg}': Destination exists or invalid"
+    except Exception as e:
+        return f"mv error: {e}"
+
+    return ""
 
 
 def cmd_exit(args: list[str], state) -> str:

@@ -2,14 +2,23 @@
 
 from collections.abc import Callable
 
-from .commands import cmd_cd, cmd_clear, cmd_exit, cmd_history, cmd_ls, cmd_vfs_save
+from .commands import (
+    cmd_cd,
+    cmd_clear,
+    cmd_exit,
+    cmd_history,
+    cmd_ls,
+    cmd_mv,
+    cmd_rmdir,
+    cmd_vfs_save,
+)
 from .vfs import VirtualFileSystem
 
 
 class ShellState:
     """Хранит текущее состояние сессии (путь, VFS, историю команд)."""
 
-    def __init__(self, vfs: VirtualFileSystem, vfs_path: str) -> None:
+    def __init__(self, vfs: VirtualFileSystem, vfs_path: str = "") -> None:
         self.vfs = vfs
         self.vfs_path = vfs_path
         self.cwd: str = "/"
@@ -51,6 +60,8 @@ COMMANDS: dict[str, Callable[[list[str], ShellState], str]] = {
     "history": cmd_history,
     "clear": cmd_clear,
     "vfs-save": cmd_vfs_save,
+    "rmdir": cmd_rmdir,
+    "mv": cmd_mv,
     "exit": cmd_exit,
 }
 

@@ -18,5 +18,8 @@ stage3:
 stage4:
 	uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/stage4_test.txt
 
+stage5:
+	uv run python -m src.main --vfs ./vfs/nested.csv --script ./scripts/stage5_test.txt
+
 clean:
 	rm -rf .venv __pycache__ src/__pycache__ tests/__pycache__

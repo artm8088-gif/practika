@@ -1,0 +1,13 @@
+# Этап 5: тест rmdir, mv и работы с измененной VFS
+ls /home/mark
+mv /home/mark/projects /home/mark/old_projects
+ls /home/mark
+cd /home/mark
+ls
+# Попытка удалить непустую папку (должна быть ошибка)
+rmdir old_projects
+# Создадим временную пустую папку в VFS для теста удаления (или удалим уже пустую)
+# Сначала проверим ошибку несуществующей папки
+rmdir /nonexistent_dir
+vfs-save /tmp/vfs_stage5.csv
+history
