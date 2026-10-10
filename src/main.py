@@ -7,7 +7,7 @@ import sys
 import customtkinter as ctk
 
 from .config import Config, debug_dump, parse_args
-from .shell import execute, is_exit, run_script
+from .shell import execute, is_exit, parse_input, run_script
 
 WINDOW_TITLE_TEMPLATE = "Shell Emulator - [{user}@{host}]"
 WINDOW_SIZE = "900x600"
@@ -61,6 +61,7 @@ class ShellApp(ctk.CTk):
         self.entry.bind("<Return>", self._on_submit)
         self.entry.focus_set()
 
+        # Путь к VFS выводится ровно один раз в самом верху окна
         self._append(f"VFS: {self.config.vfs_path}\n")
         self._append(self._prompt())
 
@@ -82,7 +83,7 @@ class ShellApp(ctk.CTk):
 
         self._append(raw + "\n")
 
-        command, _ = (raw.strip().split() + [""])[0], None
+        command, _ = parse_input(raw)
         if is_exit(command):
             self._append(execute(raw, self.config.vfs_path) + "\n")
             self.after(SCRIPT_REPLAY_DELAY_MS, self.destroy)
@@ -119,7 +120,7 @@ class ShellApp(ctk.CTk):
         if result:
             self._append(result + "\n")
 
-        command, _ = (line.strip().split() + [""])[0], None
+        command, _ = parse_input(line)
         if is_exit(command):
             self.after(SCRIPT_REPLAY_DELAY_MS, self.destroy)
             return
@@ -133,6 +134,7 @@ class ShellApp(ctk.CTk):
 def main() -> None:
     """Запускает GUI-эмулятор оболочки."""
     config = parse_args(sys.argv[1:])
+    # Возвращен отладочный вывод в консоль при запуске
     print(debug_dump(config))
     app = ShellApp(config)
     app.after(200, app.replay_script)
