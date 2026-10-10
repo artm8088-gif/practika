@@ -1,4 +1,4 @@
-"""Точка входа GUI-эмулятора оболочки."""
+"""Точка входа GUI-эмулятора оболочки с поддержкой VFS (Этап 3)."""
 
 import getpass
 import socket
@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from .config import Config, debug_dump, parse_args
 from .shell import execute, is_exit, parse_input, run_script
+from .vfs_io import VFSError, load_vfs_from_csv
 
 WINDOW_TITLE_TEMPLATE = "Shell Emulator - [{user}@{host}]"
 WINDOW_SIZE = "900x600"
@@ -33,11 +34,12 @@ def build_prompt() -> str:
 
 
 class ShellApp(ctk.CTk):
-    """Главное окно приложения с интерфейсом эмулятора терминала."""
+    """Главное окно приложения с интерфейсом эмулятора терминала и VFS."""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, vfs) -> None:
         super().__init__()
         self.config = config
+        self.vfs = vfs
         self.title(build_title())
         self.geometry(WINDOW_SIZE)
         self.prompt = build_prompt()
@@ -55,7 +57,7 @@ class ShellApp(ctk.CTk):
         self.entry = ctk.CTkEntry(
             self,
             font=(FONT_FAMILY, FONT_SIZE),
-            placeholder_text="Type a command and press Enter (try: ls, cd, exit)",
+            placeholder_text="Type a command and press Enter (try: ls, cd, vfs-save, exit)",
         )
         self.entry.pack(fill="x", padx=PADDING, pady=PADDING)
         self.entry.bind("<Return>", self._on_submit)
@@ -85,11 +87,11 @@ class ShellApp(ctk.CTk):
 
         command, _ = parse_input(raw)
         if is_exit(command):
-            self._append(execute(raw, self.config.vfs_path) + "\n")
+            self._append(execute(raw, self.config.vfs_path, self.vfs) + "\n")
             self.after(SCRIPT_REPLAY_DELAY_MS, self.destroy)
             return
 
-        result = execute(raw, self.config.vfs_path)
+        result = execute(raw, self.config.vfs_path, self.vfs)
         if result:
             self._append(result + "\n")
         self._append(self.prompt)
@@ -98,7 +100,7 @@ class ShellApp(ctk.CTk):
         """Воспроизводит стартовый скрипт как имитацию диалога с пользователем."""
         if not self.config.script_path:
             return
-        pairs = run_script(self.config.script_path, self.config.vfs_path)
+        pairs = run_script(self.config.script_path, self.config.vfs_path, self.vfs)
         delay = SCRIPT_REPLAY_DELAY_MS
         for index, (line, output) in enumerate(pairs):
             self.after(
@@ -132,11 +134,18 @@ class ShellApp(ctk.CTk):
 
 
 def main() -> None:
-    """Запускает GUI-эмулятор оболочки."""
+    """Запускает GUI-эмулятор оболочки с загрузкой VFS."""
     config = parse_args(sys.argv[1:])
-    # Возвращен отладочный вывод в консоль при запуске
     print(debug_dump(config))
-    app = ShellApp(config)
+
+    # Пытаемся загрузить VFS из CSV
+    try:
+        vfs = load_vfs_from_csv(config.vfs_path)
+    except VFSError as e:
+        print(f"Ошибка загрузки VFS: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    app = ShellApp(config, vfs)
     app.after(200, app.replay_script)
     app.mainloop()
 
