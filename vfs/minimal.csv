@@ -1,0 +1,3 @@
+type,path,content
+dir,/home,
+file,/home/mark/notes.txt,Hello world from minimal VFS!

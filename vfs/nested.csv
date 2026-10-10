@@ -1,0 +1,10 @@
+type,path,content
+dir,/home,
+dir,/home/mark,
+dir,/home/mark/projects,
+dir,/home/mark/projects/emulator,
+file,/home/mark/projects/emulator/main.py,print('Hello VFS')
+file,/home/mark/notes.txt,Nested VFS root notes
+file,/home/mark/photo.png,base64:iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==
+dir,/tmp,
+dir,/tmp/empty,

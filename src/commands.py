@@ -13,7 +13,7 @@ def cmd_ls(args: list[str], vfs_path: str) -> str:
 
     Сообщает текущий путь VFS и полученные аргументы.
     """
-    return f"ls: vfs={vfs_path} {VFS_PREFIX} args={args}"
+    return f"ls: args={args}"
 
 
 def cmd_cd(args: list[str], vfs_path: str) -> str:
@@ -21,7 +21,7 @@ def cmd_cd(args: list[str], vfs_path: str) -> str:
 
     Сообщает текущий путь VFS и полученные аргументы.
     """
-    return f"cd: vfs={vfs_path} {VFS_PREFIX} args={args}"
+    return f"cd: args={args}"
 
 
 def cmd_exit(args: list[str], vfs_path: str) -> str:
