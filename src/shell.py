@@ -1,15 +1,55 @@
-"""Основная логика REPL: разбор ввода, диспетчеризация, запуск скриптов с VFS."""
+"""Основная логика REPL: разбор ввода, диспетчеризация, запуск скриптов с VFS и состоянием."""
 
 from collections.abc import Callable
-from typing import Any
 
-from .commands import cmd_cd, cmd_exit, cmd_ls, cmd_vfs_save
+from .commands import cmd_cd, cmd_clear, cmd_exit, cmd_history, cmd_ls, cmd_vfs_save
 from .vfs import VirtualFileSystem
 
-# Имя команды -> обработчик.
-COMMANDS: dict[str, Callable[[list[str], str, Any], str]] = {
+
+class ShellState:
+    """Хранит текущее состояние сессии (путь, VFS, историю команд)."""
+
+    def __init__(self, vfs: VirtualFileSystem, vfs_path: str) -> None:
+        self.vfs = vfs
+        self.vfs_path = vfs_path
+        self.cwd: str = "/"
+        self.history: list[str] = []
+
+    def add_history(self, command: str) -> None:
+        """Добавляет команду в историю."""
+        stripped = command.strip()
+        if stripped:
+            self.history.append(stripped)
+
+    def resolve_path(self, path_arg: str) -> str:
+        """Превращает относительный или абсолютный путь в канонический абсолютный."""
+        if not path_arg or path_arg == ".":
+            return self.cwd
+
+        if path_arg.startswith("/"):
+            parts = [p for p in path_arg.split("/") if p]
+        else:
+            base_parts = [p for p in self.cwd.split("/") if p]
+            rel_parts = [p for p in path_arg.split("/") if p]
+            parts = base_parts + rel_parts
+
+        resolved_parts: list[str] = []
+        for part in parts:
+            if part == "..":
+                if resolved_parts:
+                    resolved_parts.pop()
+            elif part != ".":
+                resolved_parts.append(part)
+
+        return "/" + "/".join(resolved_parts)
+
+
+# Имя команды -> обработчик. Принимает (args, state)
+COMMANDS: dict[str, Callable[[list[str], ShellState], str]] = {
     "ls": cmd_ls,
     "cd": cmd_cd,
+    "history": cmd_history,
+    "clear": cmd_clear,
     "vfs-save": cmd_vfs_save,
     "exit": cmd_exit,
 }
@@ -31,8 +71,8 @@ def is_exit(command: str) -> bool:
     return command == "exit"
 
 
-def execute(raw: str, vfs_path: str, vfs: VirtualFileSystem | None = None) -> str:
-    """Разбирает и выполняет одну строку пользовательского ввода с учетом VFS."""
+def execute(raw: str, state: ShellState) -> str:
+    """Разбирает и выполняет одну строку пользовательского ввода с учетом состояния."""
     command, args = parse_input(raw)
 
     if not command:
@@ -42,7 +82,8 @@ def execute(raw: str, vfs_path: str, vfs: VirtualFileSystem | None = None) -> st
     if handler is None:
         return UNKNOWN_COMMAND_TEMPLATE.format(name=command)
 
-    return handler(args, vfs_path, vfs)
+    state.add_history(raw)
+    return handler(args, state)
 
 
 def read_script(path: str) -> list[str]:
@@ -57,9 +98,7 @@ def read_script(path: str) -> list[str]:
     return lines
 
 
-def run_script(
-    path: str, vfs_path: str, vfs: VirtualFileSystem | None = None
-) -> list[tuple[str, str]]:
+def run_script(path: str, state: ShellState) -> list[tuple[str, str]]:
     """Выполняет стартовый скрипт построчно с остановкой на первой ошибке."""
     results: list[tuple[str, str]] = []
     for index, line in enumerate(read_script(path), start=1):
@@ -70,7 +109,7 @@ def run_script(
                 (line, SCRIPT_ERROR_TEMPLATE.format(line=index, reason=reason))
             )
             break
-        output = execute(line, vfs_path, vfs)
+        output = execute(line, state)
         results.append((line, output))
         if is_exit(command):
             break

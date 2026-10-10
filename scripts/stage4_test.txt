@@ -1,0 +1,16 @@
+# Этап 4: тест ls, cd, history, clear и обработки ошибок
+ls
+cd /home
+ls
+cd mark
+ls
+cd ..
+ls
+cd /nonexistent
+ls /nonexistent
+history
+vfs-save /tmp/vfs_stage4.csv
+clear
+ls
+history
+exit

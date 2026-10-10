@@ -1,59 +1,67 @@
-"""Реализация команд эмулятора оболочки для этапа 3 (и базовых заглушек)."""
+"""Реализация команд эмулятора оболочки для этапа 4."""
 
 from .vfs_io import VFSError, save_vfs_to_csv
 
-VFS_PREFIX = "[vfs]"
+
+def cmd_ls(args: list[str], state) -> str:
+    """Команда `ls [путь]`: выводит содержимое каталога."""
+    target_arg = args[0] if args else "."
+    resolved_path = state.resolve_path(target_arg)
+
+    node = state.vfs.get_node(resolved_path)
+    if node is None:
+        return f"ls: {target_arg}: No such file or directory"
+    if not node.is_dir:
+        return resolved_path
+
+    children = state.vfs.list_dir(resolved_path)
+    return "\n".join(children) if children else ""
 
 
-def cmd_ls(args: list[str], vfs_path: str, vfs=None) -> str:
-    """Команда `ls`: выводит содержимое папки из VFS или заглушку."""
-    if vfs is not None:
-        # Для этапа 3 используем реальную VFS, если она передана
-        target_path = args[0] if args else "/"
-        node = vfs.get_node(target_path)
-        if node is None:
-            return f"ls: {target_path}: No such file or directory"
-        if not node.is_dir:
-            return target_path
-        children = vfs.list_dir(target_path)
-        return "\n".join(children) if children else ""
-
-    # Заглушка (на случай вызова без VFS)
-    return f"ls: args={args}"
-
-
-def cmd_cd(args: list[str], vfs_path: str, vfs=None) -> str:
-    """Команда `cd`."""
-    if vfs is not None:
-        if not args:
-            return ""
-        target_path = args[0]
-        node = vfs.get_node(target_path)
-        if node is None:
-            return f"cd: {target_path}: No such file or directory"
-        if not node.is_dir:
-            return f"cd: {target_path}: Not a directory"
+def cmd_cd(args: list[str], state) -> str:
+    """Команда `cd [путь]`: смена текущего каталога."""
+    if not args:
+        state.cwd = "/"
         return ""
 
-    return f"cd: args={args}"
+    target_arg = args[0]
+    resolved_path = state.resolve_path(target_arg)
+
+    node = state.vfs.get_node(resolved_path)
+    if node is None:
+        return f"cd: {target_arg}: No such file or directory"
+    if not node.is_dir:
+        return f"cd: {target_arg}: Not a directory"
+
+    state.cwd = resolved_path
+    return ""
 
 
-def cmd_vfs_save(args: list[str], vfs_path: str, vfs=None) -> str:
-    """Команда `vfs-save <путь>`: сохраняет состояние VFS на диск в исходном формате."""
+def cmd_history(args: list[str], state) -> str:
+    """Команда `history`: вывод истории введенных команд с нумерацией."""
+    lines = ["История команд:"]
+    for idx, cmd in enumerate(state.history, start=1):
+        lines.append(f"  {idx:3d}  {cmd}")
+    return "\n".join(lines)
+
+
+def cmd_clear(args: list[str], state) -> str:
+    """Команда `clear`: очистка экрана (сигнализируется GUI)."""
+    return "__CLEAR__"
+
+
+def cmd_vfs_save(args: list[str], state) -> str:
+    """Команда `vfs-save <путь>`: сохранение состояния VFS на диск."""
     if not args:
         return "vfs-save: missing file path argument"
-
     dest_path = args[0]
-    if vfs is None:
-        return "vfs-save: VFS is not loaded"
-
     try:
-        save_vfs_to_csv(vfs, dest_path)
+        save_vfs_to_csv(state.vfs, dest_path)
         return f"VFS successfully saved to {dest_path}"
     except VFSError as e:
         return f"vfs-save error: {e}"
 
 
-def cmd_exit(args: list[str], vfs_path: str, vfs=None) -> str:
-    """Сигнал оболочке завершить работу."""
+def cmd_exit(args: list[str], state) -> str:
+    """Завершение работы эмулятора."""
     return "exit: shutting down..."
